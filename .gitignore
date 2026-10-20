@@ -1,0 +1,25 @@
+# Market data: full ITCH files are far too large for git.
+# Small test slices go in data/vectors/ and are committed.
+data/raw/
+
+# Simulation output
+sim_build/
+results.xml
+*.vcd
+*.fst
+*.ghw
+obj_dir/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

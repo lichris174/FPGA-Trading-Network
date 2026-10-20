@@ -1,0 +1,15 @@
+[project]
+name = "fpga-trading-network"
+version = "0.0.1"
+description = "Tick-to-decision trading pipeline in Verilog, verified against a Python golden model"
+requires-python = ">=3.10"
+dependencies = [
+    "cocotb>=2.0,<3",
+    "pytest>=8",
+    "numpy>=1.26",
+]
+
+# PyTorch gets added in iteration 4 (training).
+
+[tool.setuptools]
+packages = []

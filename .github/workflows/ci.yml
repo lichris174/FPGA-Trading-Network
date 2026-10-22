@@ -1,0 +1,51 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+env:
+  VERILATOR_VERSION: v5.040
+
+jobs:
+  cocotb:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Ubuntu's Verilator is too old for cocotb 2.x, so build a pinned
+      # version from source once and cache it.
+      - name: Cache Verilator
+        id: cache-verilator
+        uses: actions/cache@v4
+        with:
+          path: ~/verilator
+          key: verilator-${{ env.VERILATOR_VERSION }}-ubuntu-24.04
+
+      - name: Install Verilator build dependencies
+        run: sudo apt-get update && sudo apt-get install -y git autoconf flex bison help2man perl g++ libfl-dev zlib1g-dev ccache
+
+      - name: Build Verilator
+        if: steps.cache-verilator.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$VERILATOR_VERSION" https://github.com/verilator/verilator /tmp/verilator
+          cd /tmp/verilator
+          autoconf
+          ./configure --prefix="$HOME/verilator"
+          make -j"$(nproc)"
+          make install
+
+      - name: Add Verilator to PATH
+        run: echo "$HOME/verilator/bin" >> "$GITHUB_PATH"
+
+      - name: Install Python dependencies
+        run: pip install -e .
+
+      - name: Run tests
+        run: |
+          verilator --version
+          make test

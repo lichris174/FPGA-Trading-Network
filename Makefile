@@ -1,6 +1,6 @@
 # Top-level build commands.
 #
-#   make test    run every cocotb testbench under tb/
+#   make test    run the Python golden model tests, then every cocotb testbench under tb/
 #   make clean   remove simulation build output
 
 TB_DIRS := $(sort $(dir $(wildcard tb/*/Makefile)))
@@ -8,6 +8,7 @@ TB_DIRS := $(sort $(dir $(wildcard tb/*/Makefile)))
 .PHONY: test clean
 
 test:
+	python -m pytest
 	@set -e; for d in $(TB_DIRS); do \
 		echo "==> $$d"; \
 		$(MAKE) -C $$d; \
@@ -21,3 +22,4 @@ clean:
 		$(MAKE) -C $$d clean >/dev/null 2>&1 || true; \
 		rm -rf $$d/sim_build $$d/results.xml $$d/__pycache__; \
 	done
+	rm -rf .pytest_cache

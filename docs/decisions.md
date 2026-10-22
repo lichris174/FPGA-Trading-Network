@@ -52,3 +52,15 @@ The model only trades when it's confident; otherwise it outputs HOLD. Raising th
 ## 2026-10-20: Top of book first
 
 The order book will track only the best bid and best ask to start. Tracking the top 3 levels makes the Verilog book much harder, so multi-level features wait for a later iteration.
+
+## 2026-10-22: The golden model is strict
+
+The Python parser and order book raise an error on anything unexpected: an unknown message type, a length that disagrees with the spec, an unknown or duplicate order reference, or a cancel larger than the order. A golden model that skips bad input quietly would let bugs through to the hardware comparison. If a real file trips one of these, I want to know why before going further.
+
+## 2026-10-22: Filter by stock locate, not symbol
+
+Only Add Order messages carry the stock symbol. Executions, cancels, deletes and replaces carry only the stock locate code, which is assigned per day in the Stock Directory (R) message. The filter looks up the locate for the chosen symbol and keeps every message with that locate, plus system events.
+
+## 2026-10-22: The book tracks every order, even though features use top of book
+
+Knowing the best bid and ask isn't enough on its own. When the last order at the best price goes away, the book has to know the next best price, and cancels and executions name an order, not a price. So the golden book keeps every live order and the total shares at every price level. The features only read the top level. How to fit this into block RAM (renumbering order references on the PC, a price-indexed level array) gets decided in iteration 7.

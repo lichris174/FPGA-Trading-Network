@@ -15,11 +15,13 @@ For the full background (markets, ITCH, the model, tradeoffs) see [docs/overview
 | Folder | Purpose |
 |---|---|
 | `docs/` | Project overview and decision log |
+| `golden/` | Python golden model: ITCH spec, parser, order book |
+| `tests/` | pytest tests for the golden model |
 | `rtl/` | Verilog for the pipeline, one subfolder per stage |
 | `tb/` | cocotb testbenches, mirroring `rtl/` |
 | `.github/workflows/` | Runs every test on each push |
 
-Folders for data, PC tools, the Python golden model, the backtest and the board files get added in the iteration that first needs them.
+Folders for data, the backtest and the board files get added in the iteration that first needs them.
 
 ## Running the tests
 
@@ -28,6 +30,16 @@ Requires Python 3.10+, Verilator 5.036 or newer, and the Python packages in `pyp
 ```
 pip install -e .
 make test
+```
+
+## Using the golden model on a real file
+
+Download a sample file from emi.nasdaq.com/ITCH (it can stay gzipped), then:
+
+```
+python -m golden.itch.tools stats  FILE                 # message counts; every message must decode
+python -m golden.itch.tools filter FILE AAPL out.itch   # one stock, same format
+python -m golden.itch.tools replay FILE AAPL            # run the order book, print final top of book
 ```
 
 ## Roadmap

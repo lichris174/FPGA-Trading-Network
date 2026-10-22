@@ -12,4 +12,7 @@ dependencies = [
 # PyTorch gets added in iteration 4 (training).
 
 [tool.setuptools]
-packages = []
+packages = ["golden", "golden.itch"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

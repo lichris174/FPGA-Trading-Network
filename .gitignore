@@ -1,6 +1,7 @@
 # Market data: full ITCH files are far too large for git.
 # Small test slices go in data/vectors/ and are committed.
 data/raw/
+*.itch
 
 # Simulation output
 sim_build/

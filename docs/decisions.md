@@ -64,3 +64,24 @@ Only Add Order messages carry the stock symbol. Executions, cancels, deletes and
 ## 2026-10-22: The book tracks every order, even though features use top of book
 
 Knowing the best bid and ask isn't enough on its own. When the last order at the best price goes away, the book has to know the next best price, and cancels and executions name an order, not a price. So the golden book keeps every live order and the total shares at every price level. The features only read the top level. How to fit this into block RAM (renumbering order references on the PC, a price-indexed level array) gets decided in iteration 7.
+
+## 2026-10-22: Features are integers from the start
+
+The Verilog feature stage has to match the Python one bit for bit, so `golden/features.py` uses only what the FPGA can do cheaply: add, subtract, compare, arithmetic shift, a few multiplies and one lookup table. No floats and no division. Writing floats first and converting later would mean writing the features twice, and the second version would be the one that counts.
+
+- Mid-price is kept doubled (`mid2 = bid + ask`) so it never needs a divide by two.
+- Imbalance is Q1.15. The division uses a reciprocal table: shift the total to exactly 11 bits, shift the size of the difference by the same amount, multiply by the table entry, then put the sign back. Working on the size and restoring the sign keeps `imbalance(b, a) == -imbalance(a, b)` exactly, which shifting a negative number would break. Worst-case error is about 0.1% of full scale. The table has 1,024 entries of 17 bits, one block RAM, and the multiply is 12 x 17 bits, which fits one 18 x 18 multiplier.
+- Microprice is used as `2 * (weighted mid - mid) = spread * imbalance >> 15`, so it reuses the imbalance and costs one multiply.
+- Running averages (order flow imbalance, trade flow) decay as `x += e - (x >> s)`, which is a shift and two adds. OFI uses three rates (s = 3, 6, 9).
+
+## 2026-10-22: Which book updates become rows
+
+A row is written for every message that changes the book, but only when the market is in regular hours (System Event Q to M), the stock is trading (last Trading Action state T) and the book has both sides without being locked or crossed. The running state only advances on those updates, so the pre-market, halts and broken books can't leak into it. The first 10 valid updates only fill the lag history.
+
+Rows are written on every book change, not only when the top of book changes. That gives more rows and matches how the hardware will run: once per message.
+
+## 2026-10-22: Labels count book updates, not time
+
+A row's label is the sign of the mid-price change over the next k rows (k = 10, 50, 100). Counting updates instead of seconds means the hardware never needs timestamps for this. The labeller only ever reads `mid2`, and it is the only code that looks forward. A test checks that feature rows don't change when more messages are appended after them.
+
+First full day (AAPL, 1,141,322 rows): at k = 10 the labels are about 24% down, 52% flat, 24% up, and the sign of imbalance matches the next non-flat move 55% of the time. At k = 50 and 100, "flat" drops below 22% and imbalance alone falls under 50%, so its information is short-lived. Every feature fits in 18 bits signed.

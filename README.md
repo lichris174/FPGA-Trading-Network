@@ -40,6 +40,7 @@ Download a sample file from emi.nasdaq.com/ITCH (it can stay gzipped), then:
 python -m golden.itch.tools stats  FILE                 # message counts; every message must decode
 python -m golden.itch.tools filter FILE AAPL out.itch   # one stock, same format
 python -m golden.itch.tools replay FILE AAPL            # run the order book, print final top of book
+python -m golden.dataset FILE AAPL data/raw/aapl.npz    # feature table and up/flat/down labels
 ```
 
 ## Roadmap

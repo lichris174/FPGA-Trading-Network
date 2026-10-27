@@ -9,10 +9,13 @@ dependencies = [
     "numpy>=1.26",
 ]
 
-# PyTorch gets added in iteration 4 (training).
+# Training only. Optional so CI and the golden model don't pull in PyTorch:
+#   pip install -e ".[train]"
+[project.optional-dependencies]
+train = ["torch>=2.4", "matplotlib>=3.8"]
 
 [tool.setuptools]
-packages = ["golden", "golden.itch"]
+packages = ["golden", "golden.itch", "train"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

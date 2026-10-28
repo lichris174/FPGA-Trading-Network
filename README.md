@@ -15,13 +15,15 @@ For the full background (markets, ITCH, the model, tradeoffs) see [docs/overview
 | Folder | Purpose |
 |---|---|
 | `docs/` | Project overview and decision log |
-| `golden/` | Python golden model: ITCH spec, parser, order book |
-| `tests/` | pytest tests for the golden model |
+| `golden/` | Python golden model: ITCH spec, parser, order book, features, labels |
+| `train/` | Training, int8 quantization and the backtest |
+| `scripts/` | One-off checks: MeatPy cross-check, maker markouts |
+| `tests/` | pytest tests for the golden model and training code |
 | `rtl/` | Verilog for the pipeline, one subfolder per stage |
 | `tb/` | cocotb testbenches, mirroring `rtl/` |
 | `.github/workflows/` | Runs every test on each push |
 
-Folders for data, the backtest and the board files get added in the iteration that first needs them.
+Market data and training results live in `data/raw/`, which is not committed. Folders for the board files get added in the iteration that first needs them.
 
 ## Running the tests
 
@@ -43,17 +45,31 @@ python -m golden.itch.tools replay FILE AAPL            # run the order book, pr
 python -m golden.dataset FILE AAPL data/raw/aapl.npz    # feature table and up/flat/down labels
 ```
 
+## Training and the backtest
+
+Needs PyTorch: `pip install -e ".[train]"`. Results go to `data/raw/results/`. The test day is only opened by the last command.
+
+```
+python -m train.sweep    data/raw/aapl.npz                  # macro-F1 vs model size, several seeds
+python -m train.fit      data/raw/aapl.npz --model mlp16    # train one model
+python -m train.quantize data/raw/aapl.npz --model mlp16    # int8 model, the reference for the Verilog
+python -m train.backtest data/raw/aapl.npz --model mlp16    # confidence threshold and P&L on validation
+python -m train.backtest data/raw/aapl.npz --model mlp16 --test data/raw/aapl_day2.npz   # test day, once
+```
+
+Results so far are in [docs/decisions.md](docs/decisions.md): mlp16 (211 parameters) is right on about 70 to 80% of moves, loses nothing when quantized to int8, and can't beat the spread at a 10-update horizon.
+
 ## Roadmap
 
-| # | Iteration | Done when |
-|---|---|---|
-| 0 | Setup: repo skeleton, toolchain, first cocotb test | `make test` passes locally and in CI |
-| 1 | Python ITCH parser | Sample file decodes, message counts by type, filtered to one stock |
-| 2 | Python order book | Best bid/ask matches MeatPy on the same file |
-| 3 | Features and labels | Feature table and up/flat/down labels generated |
-| 4 | Training and quantization | Logistic regression vs MLP on a held-out day; accuracy vs model size chart |
-| 5 | Backtest | Simulated P&L with spread and fees charged |
-| 6 | Verilog ITCH parser | Matches iteration 1 on every message |
-| 7 | Verilog order book | Matches iteration 2 after every message |
-| 8 | Verilog features and model | Bit-exact match with iterations 3 and 4 |
-| 9 | Tang Nano 20K | UART load, replay, real latency numbers |
+| # | Iteration | Done when | Status |
+|---|---|---|---|
+| 0 | Setup: repo skeleton, toolchain, first cocotb test | `make test` passes locally and in CI | Done |
+| 1 | Python ITCH parser | Sample file decodes, message counts by type, filtered to one stock | Done |
+| 2 | Python order book | Best bid/ask matches MeatPy on the same file | Done |
+| 3 | Features and labels | Feature table and up/flat/down labels generated | Done |
+| 4 | Training and quantization | Logistic regression vs MLP on a held-out day; accuracy vs model size chart | Done |
+| 5 | Backtest | Simulated P&L with spread and fees charged | Done |
+| 6 | Verilog ITCH parser | Matches iteration 1 on every message | Next |
+| 7 | Verilog order book | Matches iteration 2 after every message | |
+| 8 | Verilog features and model | Bit-exact match with iterations 3 and 4 | |
+| 9 | Tang Nano 20K | UART load, replay, real latency numbers | |

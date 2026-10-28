@@ -24,3 +24,9 @@ venv/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Test vectors are small slices of real data and are committed.
+!data/vectors/*.itch
+
+# Gowin build output
+synth/gowin/build/

@@ -131,3 +131,14 @@ So this project is measured on prediction accuracy, bit-exact hardware and laten
 Resting orders collect the spread instead of paying it, but they get filled just before the price moves against them (adverse selection). `scripts/markouts.py` measured this on all 48,709 resting-order fills of the training day. Makers earn 0.89 cents per share against the mid and keep +0.09 after 10 rows, -0.27 after 50 and -0.38 after 100. Fills that empty their price level, which is how an order joining at the back of the queue mostly fills, keep -0.14, -0.43 and -0.51.
 
 The model barely helps. Fills it warned about move only 0.1 to 0.3 cents further against the maker, and when a fill empties the level, warned and unwarned fills lose about the same. With the rebate (about 0.2 cents) a back-of-queue maker still loses about 0.3 cents per share, before counting the delay on cancels. Winning needs the front of the queue or signals from other markets, both out of scope. I'm keeping BUY / SELL / HOLD.
+
+## 2026-10-28: The Verilog parser takes one byte per clock
+
+The parser reads the same length-prefixed stream as the sample files, one byte per clock, and pulses `msg_valid` the cycle after a message's last byte with every field the book needs. Real HFT parsers take 8 to 64 bytes per clock from a 10G MAC, but UART replay delivers far less than a byte per cycle, and one byte per clock is much easier to get right. Widening the datapath is a later optimisation, with a before-and-after latency number.
+
+- Offsets come from `rtl/itch/itch_spec.vh`, generated from `golden/itch/spec.py`. A pytest check fails if the header is stale.
+- The stock filter is in hardware: a locate register, plus system events, which apply to every stock. It costs one comparator.
+- A decoded type with the wrong length pulses `msg_error` and is dropped, the hardware version of the golden parser's strictness. Other types are skipped by their length prefix.
+- `data/vectors/aapl_15k.itch`, the first 15,000 AAPL messages of a day, is committed so CI tests real data. It is continuous so the order book testbench can reuse it.
+
+All 14,823 decoded messages in the slice match the golden parser, also with random gaps in the input. On the GW2AR-18, after place and route, the parser takes 514 LUTs and 369 registers (3% of each) and reaches 144 MHz against a 100 MHz target. The synthesis wrapper folds the outputs into a checksum because the parser has about 330 output bits and the package has 66 pins.

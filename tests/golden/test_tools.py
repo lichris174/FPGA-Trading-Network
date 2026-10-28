@@ -31,3 +31,13 @@ def test_filter_by_locate_and_replay(tmp_path):
         book.apply(decode(m))
     assert book.best_bid() == (1500000, 60)
     assert book.best_ask() == (0, 0)
+
+
+def test_head_keeps_the_first_n_messages_unchanged(tmp_path):
+    from golden.itch.tools import head
+    msgs = [encode({"message_type": "D", "order_reference_number": i}) for i in range(5)]
+    path = tmp_path / "in.itch"
+    with open(path, "wb") as f:
+        write_frames(f, msgs)
+    assert list(head(path, 3)) == msgs[:3]
+    assert list(head(path, 99)) == msgs

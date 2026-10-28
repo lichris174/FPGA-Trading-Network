@@ -11,6 +11,10 @@
         Filter to one stock and run it through the order book, printing
         the final top of book. Any book error stops with the message index.
 
+    python -m golden.itch.tools head FILE N OUT
+        Copy the first N messages to OUT, unchanged. Used to cut the
+        test vectors in data/vectors/ that the cocotb testbenches replay.
+
 Messages for one stock are found by stock locate. The Stock Directory
 (R) message maps each symbol to its locate code for that day. Order
 messages E, C, X, D and U carry no symbol, only the locate, so this
@@ -53,12 +57,22 @@ def filter_stock(path, symbol):
         raise SystemExit(f"symbol {symbol!r} not found in stock directory")
 
 
+def head(path, n):
+    """Yield the first n raw messages."""
+    with open_itch(path) as f:
+        for i, msg in enumerate(read_frames(f)):
+            if i == n:
+                return
+            yield msg
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="python -m golden.itch.tools")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("stats"); s.add_argument("file")
     s = sub.add_parser("filter"); s.add_argument("file"); s.add_argument("symbol"); s.add_argument("out")
     s = sub.add_parser("replay"); s.add_argument("file"); s.add_argument("symbol")
+    s = sub.add_parser("head"); s.add_argument("file"); s.add_argument("n", type=int); s.add_argument("out")
     a = p.parse_args(argv)
 
     if a.cmd == "stats":
@@ -72,6 +86,11 @@ def main(argv=None):
             for msg in filter_stock(a.file, a.symbol):
                 write_frames(out, [msg]); n += 1
         print(f"wrote {n:,} messages to {a.out}")
+    elif a.cmd == "head":
+        with open(a.out, "wb") as out:
+            msgs = list(head(a.file, a.n))
+            write_frames(out, msgs)
+        print(f"wrote {len(msgs):,} messages to {a.out}")
     elif a.cmd == "replay":
         book = OrderBook()
         for i, msg in enumerate(filter_stock(a.file, a.symbol)):

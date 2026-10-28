@@ -85,3 +85,49 @@ Rows are written on every book change, not only when the top of book changes. Th
 A row's label is the sign of the mid-price change over the next k rows (k = 10, 50, 100). Counting updates instead of seconds means the hardware never needs timestamps for this. The labeller only ever reads `mid2`, and it is the only code that looks forward. A test checks that feature rows don't change when more messages are appended after them.
 
 First full day (AAPL, 1,141,322 rows): at k = 10 the labels are about 24% down, 52% flat, 24% up, and the sign of imbalance matches the next non-flat move 55% of the time. At k = 50 and 100, "flat" drops below 22% and imbalance alone falls under 50%, so its information is short-lived. Every feature fits in 18 bits signed.
+
+## 2026-10-27: Nine features, not twelve
+
+The first MLP spec guessed about 12 inputs. The feature list it names comes to 9 once the three OFI decay rates are counted as three features, so the model has 9 inputs. Everything below uses 9.
+
+## 2026-10-27: mlp16 is the model
+
+I trained four sizes, three seeds each, on the first 70% of the AAPL training day and scored them on the rest (validation macro-F1):
+
+| Model | Parameters | Macro-F1 |
+|---|---|---|
+| sign of imbalance (rule) | 0 | 0.304 |
+| logreg | 30 | 0.350 to 0.358 |
+| mlp8 | 107 | 0.415 to 0.430 |
+| mlp16 | 211 | 0.426 to 0.435 |
+| mlp32x16 | 899 | 0.431 to 0.442 |
+
+Accuracy flattens at mlp16, so the small model gives up almost nothing, as the "small model, no attention" entry predicted. mlp16 (9 → 16 → 3) is the one going into hardware.
+
+## 2026-10-27: int8 number formats
+
+Every scale is a power of two, so every rescale is a shift.
+
+- Inputs: each raw golden feature is shifted to Q0.7 and clamped to int8. The shift per feature comes from the training rows.
+- Weights: int8, one power-of-two scale per layer.
+- Biases: stored at the accumulator's scale, so they are added once with no shift.
+- Hidden layers: rounding shift (add half a step, then shift), then ReLU and clamp to [0, 127] in one step. A plain shift rounds everything down and biases each layer by half a step.
+- Output: the last layer's accumulators are the scores. The decision is the argmax, ties going to the lower class. Confidence is top score minus second.
+
+Quantizing changes macro-F1 by less than 0.002 for every model, and the int8 and float predictions agree on 97 to 99% of validation rows. Worst-case accumulators need 18 bits. `train/quantize.py` is the reference the Verilog model has to match bit for bit.
+
+## 2026-10-27: Paying the spread can't win at this horizon
+
+The backtest trades 1 share whenever the model says up or down with confidence at least T, holds for 10 rows, buys at the ask, sells at the bid and pays $0.003 per share each way.
+
+On the validation rows the model is right on 70 to 81% of trades where the price moved, but it makes only 0.2 to 0.4 cents per trade before costs, and loses 2.2 to 5.2 cents after them. Higher thresholds lose more, because the model is most confident when the spread is wide. The rule fixed in advance (best net per trade with at least 200 trades) picked T = 0. The test day, run once with T frozen: 69% right of moves, +0.18 cents before costs, -3.32 cents after.
+
+Even perfect foresight loses at 10 rows: the mid moves 0.36 cents on average, and essentially no row on the training day (0.0% to one decimal) moves more than the spread and fees. Perfect foresight only breaks even somewhere between 100 and 1,000 rows (2 to 20 seconds), where these features say little.
+
+So this project is measured on prediction accuracy, bit-exact hardware and latency, not P&L.
+
+## 2026-10-27: Collecting the spread doesn't save it either
+
+Resting orders collect the spread instead of paying it, but they get filled just before the price moves against them (adverse selection). `scripts/markouts.py` measured this on all 48,709 resting-order fills of the training day. Makers earn 0.89 cents per share against the mid and keep +0.09 after 10 rows, -0.27 after 50 and -0.38 after 100. Fills that empty their price level, which is how an order joining at the back of the queue mostly fills, keep -0.14, -0.43 and -0.51.
+
+The model barely helps. Fills it warned about move only 0.1 to 0.3 cents further against the maker, and when a fill empties the level, warned and unwarned fills lose about the same. With the rebate (about 0.2 cents) a back-of-queue maker still loses about 0.3 cents per share, before counting the delay on cancels. Winning needs the front of the queue or signals from other markets, both out of scope. I'm keeping BUY / SELL / HOLD.

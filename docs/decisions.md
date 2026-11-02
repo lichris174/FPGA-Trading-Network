@@ -142,3 +142,20 @@ The parser reads the same length-prefixed stream as the sample files, one byte p
 - `data/vectors/aapl_15k.itch`, the first 15,000 AAPL messages of a day, is committed so CI tests real data. It is continuous so the order book testbench can reuse it.
 
 All 14,823 decoded messages in the slice match the golden parser, also with random gaps in the input. On the GW2AR-18, after place and route, the parser takes 514 LUTs and 369 registers (3% of each) and reaches 144 MHz against a 100 MHz target. The synthesis wrapper folds the outputs into a checksum because the parser has about 330 output bits and the package has 66 pins.
+
+## 2026-10-31: The order book keeps orders in SDRAM and levels in a fixed price window
+
+`scripts/book_stats.py` replays both AAPL days through the golden book to size the hardware. The full book is too big for block RAM: up to 40,000 live orders and 4,227 price levels per side, with stub quotes from $0.01 to $199,999.99. Even orders within ±$10 of the open peak at 12,577, about 40 of the 46 block RAMs.
+
+- Orders go in the GW2AR-18's on-package 64 Mbit SDRAM, as a hash table on the low 18 bits of the order reference: 2^18 buckets of 4 64-bit entries, one 8-word burst per bucket, which fills the whole SDRAM. References are 29 bits wide and up to 276 million apart, so direct indexing is out. Up to 10 live orders (day 1) and 2 (day 2) don't fit in their bucket; they go in a 16-entry register stash searched in parallel with the SDRAM read. If the stash fills, a sticky error flag is set. 2^17 buckets of 8 also fits, with zero overflow on both days, but the fullest bucket holds exactly 8 and the bursts are twice as long.
+- Price levels go in block RAM as one cent slot each in a window of ±$20.48 around a reference price register set before the day: 4,096 × 18 bits per side, about 8 blocks. Orders outside the window, and the 6 and 13 sub-penny orders, which are all outside it, stay in the order table but don't count toward levels. During regular hours the top 2 levels stayed within $4.42 of the 9:30 mid on both days, 4.6× inside the window. The levels are exact whenever the true top 2 is in the window.
+- An occupancy bitmap with priority encoders finds the next level when one empties, in a few clocks whatever the gap (up to 150 cents at p99.99, 15,536 in the thin pre-market book).
+- The shortest book message (D, 19 bytes) gives 21 clocks per update at one byte per clock. One bucket read plus one entry write has to fit in that, so the SDRAM controller comes first and is tested on its own.
+
+## 2026-10-31: The SDRAM controller is closed-page and works on the board
+
+`rtl/sdram/sdram_ctrl.v` opens one row per operation and closes it again, so every operation takes a fixed number of clocks and no bank state is tracked. Besides plain reads (bursts of 8) and writes (1 to 8 words), it has a read-modify-write: read a bucket, keep the row open, write back the changed entry. That takes 20 clocks per bucket in simulation, inside the 21-clock budget. A refresh steals 7 clocks about every 780, so the book will take its messages through a short FIFO.
+
+`tb/sdram/sdram_model.py` is a cycle model of the SDRAM that flags every timing or protocol violation (tRCD, tRP, tRC, tRAS, tWR, tRFC, tMRD, refresh interval, bus contention, power-up order). A controller built with tRCD one clock short, or reading one clock early, fails it.
+
+On the board (`synth/sdram_test_top.v`, 64.8 MHz with the SDRAM clock shifted 225°), the test sweeps the read latency, fills all 8 MB, checks it, read-modify-writes every bucket and checks again, and prints each round over the USB serial port. Read latency 3 (CAS latency + 1, the same as in simulation) is the only value with zero errors, round after round. One test-only problem stays open: writing the write-back words as the multiplied pattern stored repeatable garbage on the board while simulation passed, so the test writes an address marker instead.

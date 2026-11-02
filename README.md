@@ -17,7 +17,7 @@ For the full background (markets, ITCH, the model, tradeoffs) see [docs/overview
 | `docs/` | Project overview and decision log |
 | `golden/` | Python golden model: ITCH spec, parser, order book, features, labels |
 | `train/` | Training, int8 quantization and the backtest |
-| `scripts/` | One-off checks: MeatPy cross-check, maker markouts |
+| `scripts/` | One-off checks: MeatPy cross-check, maker markouts, order book sizing |
 | `tests/` | pytest tests for the golden model and training code |
 | `rtl/` | Verilog for the pipeline, one subfolder per stage |
 | `tb/` | cocotb testbenches, mirroring `rtl/` |
@@ -55,6 +55,13 @@ gw_sh.exe synth/gowin/itch_parser.tcl
 ```
 
 Reports go to `synth/gowin/build/impl/`: `pnr/itch_parser.rpt.html` for resources, `pnr/itch_parser_tr_content.html` for timing.
+
+SDRAM board test (Tang Nano 20K connected): build, load into SRAM, then read the USB serial port at 115200. Each line is one 8 MB round at one read latency; `lat=3 err=00000000` is the pass.
+
+```
+gw_sh.exe synth/gowin/sdram_test.tcl
+programmer_cli.exe --device GW2AR-18C --run 2 --fsFile synth/gowin/build_sdram/impl/pnr/sdram_test.fs
+```
 
 ## Using the golden model on a real file
 

@@ -1,0 +1,19 @@
+// Tang Nano 20K pins for sdram_test_top. The SDRAM is inside the GW2AR-18
+// package and its O_sdram_* / IO_sdram_dq ports are placed by name, so
+// they need no constraints here.
+IO_LOC "XTAL_IN" 4;
+IO_PORT "XTAL_IN" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC "led[0]" 15;
+IO_LOC "led[1]" 16;
+IO_LOC "led[2]" 17;
+IO_LOC "led[3]" 18;
+IO_LOC "led[4]" 19;
+IO_LOC "led[5]" 20;
+IO_PORT "led[0]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_PORT "led[1]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_PORT "led[2]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_PORT "led[3]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_PORT "led[4]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_PORT "led[5]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "UART_TXD" 69;
+IO_PORT "UART_TXD" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;

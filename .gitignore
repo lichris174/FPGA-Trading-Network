@@ -29,4 +29,4 @@ Thumbs.db
 !data/vectors/*.itch
 
 # Gowin build output
-synth/gowin/build/
+synth/gowin/build*/

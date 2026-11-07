@@ -198,7 +198,7 @@ def report(path, s):
           f"sub-penny orders inside {s['subpenny_near']}   replaces moving in from outside {s['u_into_window']}")
     print(f"top gaps, cents level 1->2 and 2->3:  {pct(s['gaps'])}")
     print(f"widths          shares {s['max_shares'].bit_length()} bits ({s['max_shares']:,})   "
-          f"level size {s['max_level'].bit_length()} bits ({s['max_level']:,})   "
+          f"best level size {s['max_level'].bit_length()} bits ({s['max_level']:,})   "
           f"price {s['max_price'].bit_length()} bits ({s['max_price']:,})")
 
 

@@ -56,6 +56,8 @@ gw_sh.exe synth/gowin/itch_parser.tcl
 
 Reports go to `synth/gowin/build/impl/`: `pnr/itch_parser.rpt.html` for resources, `pnr/itch_parser_tr_content.html` for timing.
 
+`synth/gowin/book_levels.tcl` builds the order book's price levels the same way, into `synth/gowin/build_book/`.
+
 SDRAM board test (Tang Nano 20K connected): build, load into SRAM, then read the USB serial port at 115200. Each line is one 8 MB round at one read latency; `lat=3 err=00000000` is the pass.
 
 ```

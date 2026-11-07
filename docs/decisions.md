@@ -168,3 +168,9 @@ On the board (`synth/sdram_test_top.v`, 64.8 MHz with the SDRAM clock shifted 22
 - The stash peaked at 13 orders on day 1 and 3 on day 2, against the 10 measured earlier, because an order stays in the stash after a way in its bucket frees up. 16 entries fits with little margin, so a full stash stays a sticky error.
 - The input buffer needs 32 entries if messages arrive back to back at one byte per clock: the deepest backlog was 16 messages, 489 clocks behind. That only holds if the level update overlaps the next bucket read. With 4 extra clocks per message the backlog reaches 4,978, so the level update gets its own pipeline stage.
 - When the true top 2 is outside the window the hardware has no way to know, and shows the best levels it has. The center has to be set from the previous close.
+
+## 2026-11-07: Price levels and the top 2 are in Verilog
+
+`rtl/book/book_levels.v` holds the level sizes (8,192 × 20 bits), the occupancy bitmap and the top-2 tracker. Its testbench replays every level update the Python model makes and compares the top 2 of both sides after each one: 14,043 updates from the real AAPL slice, and random streams that empty top levels 797 times with the next level far away, across bitmap words and at the window edges. All match. Two deliberately broken copies (no RAM read wait, wrong search direction for asks) fail at the exact update.
+
+An update takes 4 clocks, 11 at most when a top level empties and the next one has to be found, inside the 20 clocks of a bucket update, so it can overlap the next bucket read. On the GW2AR-18 it uses 12 block RAMs (10 for sizes, 2 for the bitmap), 11% of the logic and 4% of the registers, and meets the 64.8 MHz system clock (84.9 MHz when synthesized for 100 MHz). The first version did the add, the empty check and the bitmap update in one clock and reached only 62.4 MHz, so the new size is registered first.

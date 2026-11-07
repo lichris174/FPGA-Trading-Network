@@ -6,7 +6,8 @@ every table, slot and flag, and the design can be checked on whole days
 of data before any of it is written in Verilog.
 
 Orders live in SDRAM, in a hash table on the low 18 bits of the order
-reference: 2^18 buckets of 4 64-bit entries.
+reference: 2^18 buckets of 4 64-bit entries. Way w of a bucket is SDRAM
+words 2w (entry bits [31:0]) and 2w + 1 (bits [63:32]).
 
     [63:31] tag      reference bits [50:18]
     [30]    side     1 = sell
@@ -15,7 +16,8 @@ reference: 2^18 buckets of 4 64-bit entries.
     [16:0]  shares   0 = empty entry
 
 An order that finds its bucket full goes in a 16-entry register stash,
-which is searched along with the bucket. Entries stay where they are
+which is searched along with the bucket and matches on reference bits
+[50:0]. Entries stay where they are
 until the order goes; a free way never pulls an order out of the stash.
 
 Levels live in block RAM: one slot per cent, 4096 slots per side around
@@ -57,8 +59,8 @@ def price_slot(price, base):
     return q if q * TICK == d else None
 
 
-def pack_entry(ref, side, inside, slot, shares):
-    tag = (ref >> BUCKET_BITS) & ((1 << TAG_BITS) - 1)
+def pack_entry(ref, side, inside, slot, shares, bucket_bits=BUCKET_BITS):
+    tag = (ref >> bucket_bits) & ((1 << TAG_BITS) - 1)
     return tag << 31 | (side == "S") << 30 | inside << 29 | slot << 17 | shares
 
 
@@ -95,8 +97,10 @@ def next_worse(words, summary, side, slot):
 
 
 class HwBook:
-    def __init__(self, center):
+    def __init__(self, center, bucket_bits=BUCKET_BITS):
+        """bucket_bits is smaller only in simulation, where clearing 2^18 buckets takes too long."""
         self.base = window_base(center)
+        self.bucket_bits = bucket_bits
         self.table = {}                                 # bucket -> list of WAYS entries; SDRAM starts cleared
         self.stash = []                                 # (reference, entry), at most STASH_SIZE
         self.stash_peak = 0
@@ -140,8 +144,8 @@ class HwBook:
             shares &= (1 << SHARE_BITS) - 1
         slot = price_slot(price, self.base)
         inside = slot is not None
-        entry = pack_entry(ref, side, inside, slot if inside else 0, shares)
-        bucket = self.table.setdefault(ref & (BUCKETS - 1), [0] * WAYS)
+        entry = pack_entry(ref, side, inside, slot if inside else 0, shares, self.bucket_bits)
+        bucket = self.table.setdefault(ref & ((1 << self.bucket_bits) - 1), [0] * WAYS)
         for way, e in enumerate(bucket):
             if e & ((1 << SHARE_BITS) - 1) == 0:
                 bucket[way] = entry
@@ -157,8 +161,8 @@ class HwBook:
 
     def _reduce(self, ref, n):
         """Take n shares off an order (None = all of it). Returns its side, or None if it isn't there."""
-        tag = (ref >> BUCKET_BITS) & ((1 << TAG_BITS) - 1)
-        bucket = self.table.get(ref & (BUCKETS - 1), ())
+        tag = (ref >> self.bucket_bits) & ((1 << TAG_BITS) - 1)
+        bucket = self.table.get(ref & ((1 << self.bucket_bits) - 1), ())
         where = next((w for w, e in enumerate(bucket) if e & ((1 << SHARE_BITS) - 1) and e >> 31 == tag), None)
         pos = None if where is not None else next((i for i, (r, _) in enumerate(self.stash) if r == ref), None)
         if where is None and pos is None:

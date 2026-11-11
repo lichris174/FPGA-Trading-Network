@@ -129,6 +129,45 @@ async def test_real_data(dut):
     assert not model.errors
 
 
+@cocotb.test(skip=not os.environ.get("BOOK_DAY_FILE"))
+async def test_day_prefix_levels(dut):
+    """Run with BOOK_DAY_FILE=<itch file> BOOK_DAY_MESSAGES=<n> BOOK_BUCKET_BITS=18.
+
+    After each book message, every level the model changed for it is read
+    straight from the level RAM and compared, so a wrong level is caught
+    when it goes wrong, not when it reaches the top 2.
+    """
+    import sys
+    from golden.itch.tools import filter_stock
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+    from book_stats import opening_mid
+
+    class Recorder(HwBook):
+        def _level(self, side, slot, delta):
+            super()._level(side, slot, delta)
+            self.touched.append((side, slot))
+
+    path, limit = os.environ["BOOK_DAY_FILE"], int(os.environ.get("BOOK_DAY_MESSAGES", "60000"))
+    center = opening_mid(path, "AAPL")
+    model = Recorder(center, bucket_bits=BUCKET_BITS)
+    await setup(dut, center)
+    ram = dut.levels.size_mem
+    for i, raw in enumerate(filter_stock(path, "AAPL"), 1):
+        if i > limit:
+            break
+        m = decode(raw)
+        model.touched = []
+        await send(dut, m)
+        if not model.apply(m):
+            continue
+        for sd, s in model.touched:
+            got = int(ram[(sd == "S") << 12 | s].value)
+            assert got == model.size[sd][s], f"message {i} {m}: level {sd} slot {s} RAM {got}, model {model.size[sd][s]}"
+        assert top(dut) == model.top2("B") + model.top2("S"), f"message {i}: top 2"
+        if i % 5000 == 0:
+            dut._log.info(f"{i} messages ok")
+
+
 @cocotb.test()
 async def test_back_to_back_throughput(dut):
     """Messages as fast as the book takes them. Checks the end state and measures clocks per message.

@@ -65,6 +65,12 @@ gw_sh.exe synth/gowin/sdram_test.tcl
 programmer_cli.exe --device GW2AR-18C --run 2 --fsFile synth/gowin/build_sdram/impl/pnr/sdram_test.fs
 ```
 
+Order book replay on the board: build and load `synth/gowin/book_board.tcl` the same way (bitstream `synth/gowin/build_book_board/impl/pnr/book_board.fs`), then send a day over the USB serial port and compare with the model every 10,000 messages (needs `pip install -e ".[board]"`):
+
+```
+python scripts/board_replay.py FILE AAPL --port COM9        # a full day: about 15 minutes
+```
+
 ## Using the golden model on a real file
 
 Download a sample file from emi.nasdaq.com/ITCH (it can stay gzipped), then:
@@ -103,6 +109,6 @@ Results so far are in [docs/decisions.md](docs/decisions.md): mlp16 (211 paramet
 | 4 | Training and quantization | Logistic regression vs MLP on a held-out day; accuracy vs model size chart | Done |
 | 5 | Backtest | Simulated P&L with spread and fees charged | Done |
 | 6 | Verilog ITCH parser | Matches iteration 1 on every message | Done |
-| 7 | Verilog order book | Matches iteration 2 after every message | Next |
+| 7 | Verilog order book | Matches iteration 2 after every message | Done |
 | 8 | Verilog features and model | Bit-exact match with iterations 3 and 4 | |
 | 9 | Tang Nano 20K | UART load, replay, real latency numbers | |

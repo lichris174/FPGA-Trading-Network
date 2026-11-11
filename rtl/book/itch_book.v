@@ -14,7 +14,10 @@
 //
 // idle is high when the FIFO is empty and the book has applied every
 // message, so the top 2 outputs are up to date. The parser may still be
-// in the middle of a message.
+// in the middle of a message. book_msg pulses in the clock a book message
+// leaves the parser (the clock after its last byte) and goes into the
+// FIFO, so the clocks from book_msg to idle are the message's latency
+// when the book was idle before it.
 
 `default_nettype none
 
@@ -39,10 +42,14 @@ module itch_book #(
     output wire [19:0] bid1_size,  bid2_size,  ask1_size,  ask2_size,
     output wire        ready,           // SDRAM up and the table cleared
     output wire        idle,
+    output wire        book_msg,
     output reg         parse_error,     // sticky: a message with the wrong length
     output wire        fifo_overflow,
     output wire [10:0] fifo_peak,
     output wire        stash_full, unknown_ref, bad_reduce, shares_overflow, level_overflow,
+    input  wire        dbg_en,          // debug: read the level RAM while the book is idle
+    input  wire [12:0] dbg_addr,
+    output wire [19:0] dbg_data,
 
     output wire        sd_cke, sd_cs_n, sd_ras_n, sd_cas_n, sd_we_n,
     output wire [1:0]  sd_ba,
@@ -94,9 +101,11 @@ module itch_book #(
     wire [10:0]  level;
     /* verilator lint_on UNUSEDSIGNAL */
 
+    assign book_msg = msg_valid && is_book;
+
     fifo #(.WIDTH(W), .ADDR_BITS(9)) queue (
         .clk(clk), .rst(rst),
-        .push(msg_valid && is_book),
+        .push(book_msg),
         .din({msg_type, order_ref[50:0], new_order_ref[50:0], side_buy, shares, price}),
         .out_valid(q_valid), .dout(q_data), .pop(q_pop),
         .overflow(fifo_overflow), .ram_level(ram_level), .level(level), .peak(fifo_peak)
@@ -119,6 +128,7 @@ module itch_book #(
         .bid1_size(bid1_size), .bid2_size(bid2_size), .ask1_size(ask1_size), .ask2_size(ask2_size),
         .idle(book_idle), .stash_full(stash_full), .unknown_ref(unknown_ref), .bad_reduce(bad_reduce),
         .shares_overflow(shares_overflow), .level_overflow(level_overflow),
+        .dbg_en(dbg_en), .dbg_addr(dbg_addr), .dbg_data(dbg_data),
         .sd_cke(sd_cke), .sd_cs_n(sd_cs_n), .sd_ras_n(sd_ras_n), .sd_cas_n(sd_cas_n), .sd_we_n(sd_we_n),
         .sd_ba(sd_ba), .sd_addr(sd_addr), .sd_dqm(sd_dqm),
         .sd_dq_out(sd_dq_out), .sd_dq_oe(sd_dq_oe), .sd_dq_in(sd_dq_in)

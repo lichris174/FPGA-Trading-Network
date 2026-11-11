@@ -69,6 +69,7 @@ module order_book_top (
         .bid1_size(bid1_size), .bid2_size(bid2_size), .ask1_size(ask1_size), .ask2_size(ask2_size),
         .idle(idle), .stash_full(stash_full), .unknown_ref(unknown_ref), .bad_reduce(bad_reduce),
         .shares_overflow(shares_overflow), .level_overflow(level_overflow),
+        .dbg_en(1'b0), .dbg_addr(13'd0), .dbg_data(),
         .sd_cke(O_sdram_cke), .sd_cs_n(O_sdram_cs_n), .sd_ras_n(O_sdram_ras_n),
         .sd_cas_n(O_sdram_cas_n), .sd_we_n(O_sdram_wen_n), .sd_ba(O_sdram_ba),
         .sd_addr(O_sdram_addr), .sd_dqm(O_sdram_dqm), .sd_dq_out(dq_out), .sd_dq_oe(dq_oe),

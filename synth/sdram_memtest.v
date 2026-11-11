@@ -38,7 +38,8 @@ module sdram_memtest #(
     parameter CLKS_PER_BIT = 562,
     parameter INIT_WAIT    = 20000,
     parameter REF_INTERVAL = 500,
-    parameter BEAT_BIT     = 25
+    parameter BEAT_BIT     = 25,
+    parameter WB_WORDS     = 2             // words written back by each rmw: 2 (a new book entry) or 1 (a reduce)
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -91,7 +92,7 @@ module sdram_memtest #(
         .clk(clk), .rst(rst), .rd_lat({1'b0, lat}),
         .cmd_valid(cmd_valid), .cmd_ready(cmd_ready), .cmd_op(cmd_op), .cmd_addr(base),
         .wr_len(3'd7), .wdata(wdata), .wnext(wnext), .rvalid(rvalid), .rdata(rdata),
-        .wb_valid(wb_valid), .wb_ready(wb_ready), .wb_off(wb_off), .wb_len(3'd1), .wb_skip(1'b0),
+        .wb_valid(wb_valid), .wb_ready(wb_ready), .wb_off(wb_off), .wb_len(WB_WORDS[2:0] - 3'd1), .wb_skip(1'b0),
         .init_done(init_done),
         .sd_cke(sd_cke), .sd_cs_n(sd_cs_n), .sd_ras_n(sd_ras_n), .sd_cas_n(sd_cas_n),
         .sd_we_n(sd_we_n), .sd_ba(sd_ba), .sd_addr(sd_addr), .sd_dqm(sd_dqm),
@@ -109,7 +110,7 @@ module sdram_memtest #(
 
     // Expected word at offset ridx of the current group.
     wire [20:0] raddr   = base | ridx;
-    wire [31:0] exp_now = (phase == P_VERIFY2 && ridx[2:1] == group[1:0]) ? wbpat(raddr) : pat(raddr, seed);
+    wire [31:0] exp_now = (phase == P_VERIFY2 && ridx - wb_off < WB_WORDS[2:0]) ? wbpat(raddr) : pat(raddr, seed);
 
     always @(*) begin
         if (state == S_WB || state == S_WBDATA)
@@ -212,7 +213,7 @@ module sdram_memtest #(
 
         S_WBDATA: if (wnext) begin
             widx <= widx + 3'd1;
-            if (widx == 3'd1)
+            if (widx == WB_WORDS[2:0] - 3'd1)
                 next_group();
         end
 

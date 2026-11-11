@@ -33,6 +33,13 @@
 // power-up sequence (INIT_WAIT clocks, precharge all, 8 refreshes, mode
 // register) before cmd_ready first goes high.
 //
+// Writes drive the bus from the clock before the first WRITE until the
+// clock after the last one, with the first word already on it. The
+// output enable reaches 32 pins through the fabric, and on the board a
+// late turn-on let the SDRAM latch the odd floating bit; driving early
+// takes the turn-on delay out of the sampling window. The bus is idle
+// then: a read burst ends at least 2 clocks before. Needs T_RCD >= 2.
+//
 // Timing parameters are in clocks; the defaults are for 100 MHz with
 // a -6/-7 speed grade part at CAS latency 2. rd_lat (an input, so a
 // board test can sweep it) is the number of clocks from issuing READ
@@ -128,6 +135,7 @@ module sdram_ctrl #(
     reg  [2:0]  left;           // words still to write after the current one
 
     reg  [31:0] dq_in_r;
+    reg         oe_hold;        // keep driving one clock after the last WRITE
     reg  [7:0]  rd_mark;      // high for the 8 clocks after READ, one per burst word
     reg  [15:0] rd_sh;
 
@@ -140,7 +148,8 @@ module sdram_ctrl #(
 
     always @(posedge clk) begin
         cmd      <= CMD_NOP;
-        sd_dq_oe <= 1'b0;
+        sd_dq_oe <= oe_hold;
+        oe_hold  <= 1'b0;
         if (timer != 0)
             timer <= timer - 1'b1;
         if (rc_timer != 0)
@@ -205,7 +214,12 @@ module sdram_ctrl #(
             end
         end
 
-        S_RCD: if (timer == 0) begin
+        S_RCD: if (timer != 0) begin
+            if (timer == 1 && op == OP_WRITE) begin  // drive word 0 a clock early
+                sd_dq_out <= wdata;
+                sd_dq_oe  <= 1'b1;
+            end
+        end else begin
             if (op == OP_WRITE) begin
                 state <= S_WRITE;
                 write_word();
@@ -235,9 +249,11 @@ module sdram_ctrl #(
                 timer   <= T_RP - 1;
                 state   <= S_IDLE;
             end else begin
-                col   <= {col[7:3], wb_off};
-                left  <= wb_len;
-                state <= S_WRITE;
+                col       <= {col[7:3], wb_off};
+                left      <= wb_len;
+                state     <= S_WRITE;
+                sd_dq_out <= wdata;                  // drive word 0 a clock early
+                sd_dq_oe  <= 1'b1;
             end
         end
 
@@ -259,6 +275,7 @@ module sdram_ctrl #(
             ref_pend  <= 1'b0;
             sd_dqm    <= 4'hF;
             sd_dq_oe  <= 1'b0;
+            oe_hold   <= 1'b0;
             rd_mark   <= 8'h00;
             rd_sh     <= 16'd0;
             rvalid    <= 1'b0;
@@ -280,7 +297,8 @@ module sdram_ctrl #(
                 col <= col + 1'b1;
             left <= left - 1'b1;
             if (left == 0) begin
-                timer <= T_WR + T_RP - 1;
+                oe_hold <= 1'b1;
+                timer   <= T_WR + T_RP - 1;
                 state <= S_IDLE;
             end else
                 state <= S_WRITE;

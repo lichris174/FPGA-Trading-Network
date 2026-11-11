@@ -28,6 +28,10 @@
 // found. upd_ready is low meanwhile. After reset both RAMs are cleared,
 // which takes 8192 clocks.
 //
+// Debug: while dbg_en is high and no update is running, the size RAM
+// reads dbg_addr ({side, slot}); dbg_data has the size two clocks later.
+// No update starts meanwhile.
+//
 // A level that goes above 2^20 - 1 or below 0 sets the sticky flag
 // level_overflow; the stored size wraps, as in the model.
 
@@ -44,6 +48,10 @@ module book_levels (
     input  wire [11:0] upd_slot,
     input  wire        upd_add,
     input  wire [16:0] upd_shares,
+
+    input  wire        dbg_en,          // debug: read the level RAM while the book is idle
+    input  wire [12:0] dbg_addr,
+    output wire [19:0] dbg_data,
 
     output wire [31:0] bid1_price, bid2_price, ask1_price, ask2_price,  // 0 when there is no level
     output wire [19:0] bid1_size,  bid2_size,  ask1_size,  ask2_size,
@@ -67,9 +75,18 @@ module book_levels (
     reg  [63:0] bm_rdata,   bm_wdata;
     reg         size_we, bm_we;
 
+    // A Gowin block RAM read of the address being written in the same clock
+    // is undefined (and can disturb the stored word), while the simulator
+    // returns the old data; so the FSM moves each read address away before
+    // a write lands (S_APPLY, S_TRACK).
+    // Each RAM reads only in the clocks whose result is used, never while
+    // it is written.
+    wire size_re = state == S_READ || state == S_SIZE_WAIT || (state == S_IDLE && dbg_en);
+    wire bm_re   = state == S_READ || state == S_SCAN_WAIT || state == S_JUMP_WAIT;
+
     always @(posedge clk) begin
-        size_rdata <= size_mem[size_raddr];
-        bm_rdata   <= bm_mem[bm_raddr];
+        if (size_re) size_rdata <= size_mem[size_raddr];
+        if (bm_re)   bm_rdata   <= bm_mem[bm_raddr];
         if (size_we) size_mem[size_waddr] <= size_wdata;
         if (bm_we)   bm_mem[bm_waddr]     <= bm_wdata;
     end
@@ -137,7 +154,8 @@ module book_levels (
     wire [5:0]  rest_word = side ? lsb64(rest) : msb64(rest);
     wire [5:0]  word_bit  = side ? lsb64(bm_rdata) : msb64(bm_rdata);
 
-    assign upd_ready = state == S_IDLE;
+    assign upd_ready = state == S_IDLE && !dbg_en;
+    assign dbg_data  = size_rdata;
 
     always @(posedge clk) begin
         size_we <= 1'b0;
@@ -156,7 +174,9 @@ module book_levels (
                 state <= S_IDLE;
         end
 
-        S_IDLE: if (upd_valid) begin
+        S_IDLE: if (dbg_en)
+            size_raddr <= dbg_addr;
+        else if (upd_valid) begin
             side       <= upd_side;
             slot       <= upd_slot;
             add        <= upd_add;
@@ -175,6 +195,7 @@ module book_levels (
             size_we    <= 1'b1;
             size_waddr <= {side, slot};
             size_wdata <= new_sz;
+            size_raddr <= {~side, slot};           // never read the address being written
             r_new      <= new_sz;
             r_occ      <= occupy;
             r_vac      <= vacate;
@@ -194,6 +215,7 @@ module book_levels (
                 bm_we    <= 1'b1;
                 bm_waddr <= {side, slot[11:6]};
                 bm_wdata <= word_new;
+                bm_raddr <= {~side, slot[11:6]};   // never read the address being written
                 summary[side][slot[11:6]] <= word_new != 0;
             end
 

@@ -71,6 +71,9 @@ module order_book #(
     output reg         bad_reduce,
     output reg         shares_overflow,
     output wire        level_overflow,
+    input  wire        dbg_en,          // debug: read the level RAM while the book is idle
+    input  wire [12:0] dbg_addr,
+    output wire [19:0] dbg_data,
 
     output wire        sd_cke, sd_cs_n, sd_ras_n, sd_cas_n, sd_we_n,
     output wire [1:0]  sd_ba,
@@ -120,6 +123,7 @@ module order_book #(
         .clk(clk), .rst(rst), .cfg_base(cfg_base),
         .upd_valid(upd_valid), .upd_ready(upd_ready), .upd_side(upd_side), .upd_slot(upd_slot),
         .upd_add(upd_add), .upd_shares(upd_shares),
+        .dbg_en(dbg_en), .dbg_addr(dbg_addr), .dbg_data(dbg_data),
         .bid1_price(bid1_price), .bid2_price(bid2_price), .ask1_price(ask1_price), .ask2_price(ask2_price),
         .bid1_size(bid1_size), .bid2_size(bid2_size), .ask1_size(ask1_size), .ask2_size(ask2_size),
         .level_overflow(level_overflow)

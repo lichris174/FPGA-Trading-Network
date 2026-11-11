@@ -13,6 +13,7 @@ dependencies = [
 #   pip install -e ".[train]"
 [project.optional-dependencies]
 train = ["torch>=2.4", "matplotlib>=3.8"]
+board = ["pyserial>=3.5"]     # scripts/board_replay.py
 
 [tool.setuptools]
 packages = ["golden", "golden.itch", "train"]
